@@ -52,7 +52,7 @@ public class InteractionValueEncoder extends FeatureVectorEncoder {
          int h1 = hash1(name, originalForm1, i, data.size());
          int h2 = hash2(name, originalForm1, i, data.size());
          int j =  hash1(name, originalForm2, i, data.size());
-         int n = (h1 + j*h2) % data.size();
+         int n = (h1 + (j+1)*h2) % data.size();
          trace(String.format("%s:%s", originalForm1, originalForm2), n);
          data.set(n, data.get(n) + 1);
        }
