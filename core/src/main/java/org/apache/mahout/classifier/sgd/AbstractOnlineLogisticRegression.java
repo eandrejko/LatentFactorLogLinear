@@ -25,6 +25,7 @@ import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.function.Functions;
 import org.apache.mahout.math.function.UnaryFunction;
 
+import java.io.Serializable;
 import java.util.Iterator;
 
 /**
@@ -39,7 +40,7 @@ import java.util.Iterator;
  * annealing of learning rates.  Any extension of this abstract class must define the overall
  * and per-term annealing for themselves.
  */
-public abstract class AbstractOnlineLogisticRegression extends AbstractVectorClassifier implements OnlineLearner {
+public abstract class AbstractOnlineLogisticRegression extends AbstractVectorClassifier implements OnlineLearner, Serializable {
   // coefficients for the classification.  This is a dense matrix
   // that is (numCategories-1) x numFeatures
   protected Matrix beta;
@@ -50,15 +51,15 @@ public abstract class AbstractOnlineLogisticRegression extends AbstractVectorCla
   private int step = 0;
 
   // information about how long since coefficient rows were updated.  This allows lazy regularization.
-  protected transient Vector updateSteps;
+  protected Vector updateSteps;
 
   // information about how many updates we have had on a location.  This allows per-term
   // annealing a la confidence weighted learning.
-  protected transient Vector updateCounts;
+  protected Vector updateCounts;
 
   // weight of the prior on beta
   private double lambda = 1e-5;
-  protected transient PriorFunction prior;
+  protected PriorFunction prior;
 
   // can we ignore any further regularization when doing classification?
   private boolean sealed = false;

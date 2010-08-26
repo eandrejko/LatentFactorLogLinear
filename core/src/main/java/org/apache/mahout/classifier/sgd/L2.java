@@ -17,13 +17,15 @@
 
 package org.apache.mahout.classifier.sgd;
 
+import java.io.Serializable;
+
 import static java.lang.Math.log;
 
 /**
  * Implements the Gaussian prior.  This prior has a tendency to decrease large coefficients toward zero, but
  * doesn't tend to set them to exactly zero.
  */
-public class L2 extends PriorFunction {
+public class L2 extends PriorFunction implements Serializable {
   private double s2;
   private double s;
 

@@ -21,6 +21,7 @@ import org.apache.mahout.math.function.BinaryFunction;
 import org.apache.mahout.math.function.UnaryFunction;
 import org.apache.mahout.math.function.VectorFunction;
 
+import java.io.Serializable;
 import java.util.Map;
 
 /** The basic interface including numerous convenience functions */

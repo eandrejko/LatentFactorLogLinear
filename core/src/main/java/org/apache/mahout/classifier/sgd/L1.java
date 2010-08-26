@@ -17,6 +17,8 @@
 
 package org.apache.mahout.classifier.sgd;
 
+import java.io.Serializable;
+
 /**
  * Implements the Laplacian or bi-exponential prior.  This prior has a strong tendency to set coefficients to zero
  * and thus is useful as an alternative to variable selection.  This version implements truncation which prevents
@@ -26,7 +28,7 @@ package org.apache.mahout.classifier.sgd;
  * the lambda coefficient used to combine the prior with the observations has the same effect.  If we had a scale here,
  * then it would be the same effect as just changing lambda.
  */
-public class L1 extends PriorFunction {
+public class L1 extends PriorFunction implements Serializable {
   @Override
   public double age(double oldValue, double generations, double learningRate) {
     double newValue = oldValue - Math.signum(oldValue) * learningRate * generations;

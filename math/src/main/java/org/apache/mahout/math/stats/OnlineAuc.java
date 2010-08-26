@@ -22,6 +22,7 @@ import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.Vector;
 
+import java.io.Serializable;
 import java.util.Random;
 
 /**
@@ -32,7 +33,7 @@ import java.util.Random;
  * has a higher score than a random element of another set) gives us a way to estimate this
  * on-line.
  */
-public class OnlineAuc {
+public class OnlineAuc implements Serializable {
 
   enum ReplacementPolicy {
     FIFO, FAIR, RANDOM

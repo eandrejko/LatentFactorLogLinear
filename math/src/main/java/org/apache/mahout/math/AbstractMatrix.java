@@ -25,13 +25,14 @@ import org.apache.mahout.math.function.PlusMult;
 import org.apache.mahout.math.function.UnaryFunction;
 import org.apache.mahout.math.function.VectorFunction;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
 /** A few universal implementations of convenience functions */
-public abstract class AbstractMatrix implements Matrix {
+public abstract class AbstractMatrix implements Matrix, Serializable {
 
   protected Map<String, Integer> columnLabelBindings;
 

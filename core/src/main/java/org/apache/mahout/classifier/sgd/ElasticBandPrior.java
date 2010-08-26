@@ -17,11 +17,13 @@
 
 package org.apache.mahout.classifier.sgd;
 
+import java.io.Serializable;
+
 /**
  * Implements a linear combination of L1 and L2 priors.  This can give an
  * interesting mixture of sparsity and load-sharing between redundant predictors.
  */
-public class ElasticBandPrior extends PriorFunction {
+public class ElasticBandPrior extends PriorFunction implements Serializable {
   private double alphaByLambda;
   private L1 l1;
   private L2 l2;

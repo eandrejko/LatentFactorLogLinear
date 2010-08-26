@@ -8,6 +8,7 @@ import org.apache.mahout.ep.Mapping;
 import org.apache.mahout.ep.State;
 import org.apache.mahout.math.Vector;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -32,7 +33,7 @@ import java.util.concurrent.ExecutionException;
  * much easier to get bogus values of log-likelihood than with AUC and the results seem to
  * accord pretty well.  It would be nice to allow the fitness function to be pluggable.
  */
-public class AdaptiveLogisticRegression implements OnlineLearner {
+public class AdaptiveLogisticRegression implements OnlineLearner, Serializable {
   private int record = 0;
   private int evaluationInterval = 1000;
 
@@ -170,7 +171,7 @@ public class AdaptiveLogisticRegression implements OnlineLearner {
    * Note that per coefficient annealing is still done and no optimization of the per coefficient
    * offset is done.
    */
-  public static class Wrapper implements Payload<Wrapper> {
+  public static class Wrapper implements Payload<Wrapper>, Serializable {
     private static volatile int counter = 0;
 
     private volatile int id = counter++;
@@ -222,7 +223,7 @@ public class AdaptiveLogisticRegression implements OnlineLearner {
     }
   }
 
-  public static class TrainingExample {
+  public static class TrainingExample implements Serializable {
     private long key;
     private int actual;
     private Vector instance;

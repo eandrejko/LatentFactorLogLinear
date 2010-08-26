@@ -17,6 +17,7 @@
 
 package org.apache.mahout.math;
 
+import java.io.Serializable;
 import java.util.Iterator;
 
 import org.apache.mahout.math.function.BinaryFunction;
@@ -26,7 +27,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 /** Implementations of generic capabilities like sum of elements and dot products */
-public abstract class AbstractVector implements Vector {
+public abstract class AbstractVector implements Vector, Serializable {
 
   private int size;
   protected double lengthSquared = -1.0;

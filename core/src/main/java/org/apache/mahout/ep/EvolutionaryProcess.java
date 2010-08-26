@@ -2,6 +2,7 @@ package org.apache.mahout.ep;
 
 import com.google.common.collect.Lists;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -42,10 +43,11 @@ import java.util.concurrent.Future;
  *
  * @param <T> The payload class.
  */
-public class EvolutionaryProcess<T extends Payload<T>> {
+public class EvolutionaryProcess<T extends Payload<T>> implements Serializable {
   // used to execute operations on the population in thread parallel.
-  private ExecutorService pool;
-
+  private transient ExecutorService pool;
+  private int threads;
+  
   // list of members of the population
   private List<State<T>> population;
 
@@ -62,6 +64,7 @@ public class EvolutionaryProcess<T extends Payload<T>> {
    */
   public EvolutionaryProcess(int threadCount, int populationSize, State<T> seed) {
     this.populationSize = populationSize;
+    this.threads = threadCount;
     pool = Executors.newFixedThreadPool(threadCount);
     population = Lists.newArrayList(seed);
     for (int i = 0; i < populationSize; i++) {
@@ -110,6 +113,10 @@ public class EvolutionaryProcess<T extends Payload<T>> {
           return state;
         }
       });
+    }
+
+    if(pool == null){
+      pool = Executors.newFixedThreadPool(threads);      
     }
 
     List<Future<State<T>>> r = pool.invokeAll(tasks);

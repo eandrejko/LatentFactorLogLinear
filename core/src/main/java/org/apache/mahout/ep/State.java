@@ -1,5 +1,6 @@
 package org.apache.mahout.ep;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -22,7 +23,7 @@ import java.util.Random;
  * @see Mapping
  * @see State
  */
-public class State<T extends Payload<T>> implements Comparable<State<T>> {
+public class State<T extends Payload<T>> implements Comparable<State<T>>, Serializable {
   // object count is kept to break ties in comparison.
   static volatile int objectCount = 0;
 

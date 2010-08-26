@@ -2,11 +2,13 @@ package org.apache.mahout.ep;
 
 import org.apache.mahout.math.function.UnaryFunction;
 
+import java.io.Serializable;
+
 /**
  * Provides coordinate tranformations so that evolution can proceed on the entire space of
  * reals but have the output limited and squished in convenient (and safe) ways.
  */
-public abstract class Mapping implements UnaryFunction {
+public abstract class Mapping implements UnaryFunction, Serializable {
   /**
    * Maps input to the open interval (min, max) with 0 going to the mean of min and
    * max.  When scale is large, a larger proportion of values are mapped to points

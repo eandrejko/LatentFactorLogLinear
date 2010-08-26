@@ -8,6 +8,7 @@ import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.function.Functions;
 import org.apache.mahout.math.stats.OnlineAuc;
 
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -18,7 +19,7 @@ import java.util.List;
  * time the training data is traversed or a tracking key such as the file offset of the training
  * record should be passed with each training example.
  */
-public class CrossFoldLearner extends AbstractVectorClassifier implements OnlineLearner {
+public class CrossFoldLearner extends AbstractVectorClassifier implements OnlineLearner, Serializable {
   private static volatile int nextId = 0;
 
   private final int id = nextId++;
