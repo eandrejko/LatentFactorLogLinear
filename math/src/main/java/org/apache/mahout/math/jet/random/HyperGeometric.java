@@ -60,19 +60,17 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
   private double p5;
   private double p6;
 
-
-  // The uniform random number generated shared by all <b>static</b> methods.
-  private static final HyperGeometric shared = new HyperGeometric(1, 1, 1, RandomUtils.getRandom());
-
   /** Constructs a HyperGeometric distribution. */
   public HyperGeometric(int N, int s, int n, Random randomGenerator) {
     setRandomGenerator(randomGenerator);
     setState(N, s, n);
   }
 
-  private static double fc_lnpk(int k, int N_Mn, int M, int n) {
-    return (Arithmetic.logFactorial(k) + Arithmetic.logFactorial(M - k) + Arithmetic.logFactorial(n - k) +
-        Arithmetic.logFactorial(N_Mn + k));
+  private static double fcLnpk(int k, int N_Mn, int M, int n) {
+    return Arithmetic.logFactorial(k)
+        + Arithmetic.logFactorial(M - k)
+        + Arithmetic.logFactorial(n - k)
+        + Arithmetic.logFactorial(N_Mn + k);
   }
 
   /** Returns a random number from the distribution. */
@@ -111,7 +109,7 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
     while (true) {
       double U;
       if ((U = randomGenerator.nextDouble() - fm) <= 0.0) {
-        return (m);
+        return m;
       }
       double d;
       double c = d = fm;
@@ -122,13 +120,13 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
         K = mp - I;                                   /* downward search  */
         c *= (double) K / (np - K) * ((double) (NMn + K) / (Mp - K));
         if ((U -= c) <= 0.0) {
-          return (K - 1);
+          return K - 1;
         }
 
         K = m + I;                                    /* upward search    */
         d *= (np - K) / (double) K * ((Mp - K) / (double) (NMn + K));
         if ((U -= d) <= 0.0) {
-          return (K);
+          return K;
         }
       }
 
@@ -136,7 +134,7 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
       for (K = mp + m; K <= b; K++) {
         d *= (np - K) / (double) K * ((Mp - K) / (double) (NMn + K));
         if ((U -= d) <= 0.0) {
-          return (K);
+          return K;
         }
       }
     }
@@ -190,13 +188,13 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
       lr = -Math.log(r5);                                  // expon. tail right //
 
       // hypergeom. constant, necessary for computing function values f(k)
-      cpm = fc_lnpk(m, NMn, M, n);
+      cpm = fcLnpk(m, NMn, M, n);
 
       // function values f(k) = p(k)/p(m)  at  k = k2, k4, k1, k5
-      f2 = Math.exp(cpm - fc_lnpk(k2, NMn, M, n));
-      f4 = Math.exp(cpm - fc_lnpk(k4, NMn, M, n));
-      f1 = Math.exp(cpm - fc_lnpk(k1, NMn, M, n));
-      f5 = Math.exp(cpm - fc_lnpk(k5, NMn, M, n));
+      f2 = Math.exp(cpm - fcLnpk(k2, NMn, M, n));
+      f4 = Math.exp(cpm - fcLnpk(k4, NMn, M, n));
+      f1 = Math.exp(cpm - fcLnpk(k1, NMn, M, n));
+      f5 = Math.exp(cpm - fcLnpk(k5, NMn, M, n));
 
       // area of the two centre and the two exponential tail regions
       // area of the two immediate acceptance regions between k2, k4
@@ -220,26 +218,26 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
 
         // immediate acceptance region R2 = [k2, m) *[0, f2),  X = k2, ... m -1
         if ((W = U - p1) < 0.0) {
-          return (k2 + (int) (U / f2));
+          return k2 + (int) (U / f2);
         }
         // immediate acceptance region R1 = [k1, k2)*[0, f1),  X = k1, ... k2-1
         if ((Y = W / dl) < f1) {
-          return (k1 + (int) (W / f1));
+          return k1 + (int) (W / f1);
         }
 
         // computation of candidate X < k2, and its counterpart V > k2
         // either squeeze-acceptance of X or acceptance-rejection of V
-        Dk = (int) (dl * randomGenerator.nextDouble()) + 1;
+        Dk = randomGenerator.nextInt((int) dl) + 1;
         if (Y <= f2 - Dk * (f2 - f2 / r2)) {            // quick accept of
-          return (k2 - Dk);                          // X = k2 - Dk
+          return k2 - Dk;                          // X = k2 - Dk
         }
         if ((W = f2 + f2 - Y) < 1.0) {                // quick reject of V
           V = k2 + Dk;
           if (W <= f2 + Dk * (1.0 - f2) / (dl + 1.0)) { // quick accept of
-            return (V);                              // V = k2 + Dk
+            return V;                              // V = k2 + Dk
           }
-          if (Math.log(W) <= cpm - fc_lnpk(V, NMn, M, n)) {
-            return (V);               // final accept of V
+          if (Math.log(W) <= cpm - fcLnpk(V, NMn, M, n)) {
+            return V;               // final accept of V
           }
         }
         X = k2 - Dk;
@@ -247,26 +245,26 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
 
         // immediate acceptance region R3 = [m, k4+1)*[0, f4), X = m, ... k4
         if ((W = U - p3) < 0.0) {
-          return (k4 - (int) ((U - p2) / f4));
+          return k4 - (int) ((U - p2) / f4);
         }
         // immediate acceptance region R4 = [k4+1, k5+1)*[0, f5)
         if ((Y = W / dr) < f5) {
-          return (k5 - (int) (W / f5));
+          return k5 - (int) (W / f5);
         }
 
         // computation of candidate X > k4, and its counterpart V < k4
         // either squeeze-acceptance of X or acceptance-rejection of V
-        Dk = (int) (dr * randomGenerator.nextDouble()) + 1;
+        Dk = randomGenerator.nextInt((int) dr) + 1;
         if (Y <= f4 - Dk * (f4 - f4 * r4)) {            // quick accept of
-          return (k4 + Dk);                          // X = k4 + Dk
+          return k4 + Dk;                          // X = k4 + Dk
         }
         if ((W = f4 + f4 - Y) < 1.0) {                // quick reject of V
           V = k4 - Dk;
           if (W <= f4 + Dk * (1.0 - f4) / dr) {       // quick accept of
-            return (V);                            // V = k4 - Dk
+            return V;                            // V = k4 - Dk
           }
-          if (Math.log(W) <= cpm - fc_lnpk(V, NMn, M, n)) {
-            return (V);                            // final accept of V
+          if (Math.log(W) <= cpm - fcLnpk(V, NMn, M, n)) {
+            return V;                            // final accept of V
           }
         }
         X = k4 + Dk;
@@ -279,7 +277,7 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
           }         // 0 <= X <= k1 - 1
           Y *= (U - p4) * ll;                       // Y -- U(0, h(x))
           if (Y <= f1 - Dk * (f1 - f1 / r1)) {
-            return (X);                            // quick accept of X
+            return X;                            // quick accept of X
           }
         } else {                                        // expon. tail right
           Dk = (int) (1.0 - Math.log(Y) / lr);
@@ -288,7 +286,7 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
           }        // k5 + 1 <= X <= n
           Y *= (U - p5) * lr;                       // Y -- U(0, h(x))   /
           if (Y <= f5 - Dk * (f5 - f5 * r5)) {
-            return (X);                            // quick accept of X
+            return X;                            // quick accept of X
           }
         }
       }
@@ -298,8 +296,8 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
       // log f(X) = log( m! (M - m)! (n - m)! (N - M - n + m)! )
       //          - log( X! (M - X)! (n - X)! (N - M - n + X)! )
       // by using an external function for log k!
-      if (Math.log(Y) <= cpm - fc_lnpk(X, NMn, M, n)) {
-        return (X);
+      if (Math.log(Y) <= cpm - fcLnpk(X, NMn, M, n)) {
+        return X;
       }
     }
   }
@@ -365,18 +363,18 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
  ******************************************************************/
 
     int Nhalf = N / 2;
-    int n_le_Nhalf = (n <= Nhalf) ? n : N - n;
-    int M_le_Nhalf = (M <= Nhalf) ? M : N - M;
+    int nLeNhalf = (n <= Nhalf) ? n : N - n;
+    int mLeNhalf = (M <= Nhalf) ? M : N - M;
 
     int K;
     if ((n * M / N) < 10) {
-      K = (n_le_Nhalf <= M_le_Nhalf)
-          ? hmdu(N, M_le_Nhalf, n_le_Nhalf, randomGenerator)
-          : hmdu(N, n_le_Nhalf, M_le_Nhalf, randomGenerator);
+      K = (nLeNhalf <= mLeNhalf)
+          ? hmdu(N, mLeNhalf, nLeNhalf, randomGenerator)
+          : hmdu(N, nLeNhalf, mLeNhalf, randomGenerator);
     } else {
-      K = (n_le_Nhalf <= M_le_Nhalf)
-          ? hprs(N, M_le_Nhalf, n_le_Nhalf, randomGenerator)
-          : hprs(N, n_le_Nhalf, M_le_Nhalf, randomGenerator);
+      K = (nLeNhalf <= mLeNhalf)
+          ? hprs(N, mLeNhalf, nLeNhalf, randomGenerator)
+          : hprs(N, nLeNhalf, mLeNhalf, randomGenerator);
     }
 
     if (n <= Nhalf) {
@@ -397,13 +395,6 @@ public class HyperGeometric extends AbstractDiscreteDistribution {
     this.myN = N;
     this.mys = s;
     this.myn = n;
-  }
-
-  /** Returns a random number from the distribution. */
-  public static double staticNextInt(int N, int M, int n) {
-    synchronized (shared) {
-      return shared.nextInt(N, M, n);
-    }
   }
 
   /** Returns a String representation of the receiver. */

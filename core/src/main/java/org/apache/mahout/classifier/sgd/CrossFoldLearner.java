@@ -19,13 +19,12 @@ import java.util.List;
  * record should be passed with each training example.
  */
 public class CrossFoldLearner extends AbstractVectorClassifier implements OnlineLearner {
+  private int record;
   // minimum score to be used for computing log likelihood
   private static final double MIN_SCORE = 1e-50;
-
-  private int record = 0;
   private OnlineAuc auc = new OnlineAuc();
-  private double logLikelihood = 0;
-  private List<OnlineLogisticRegression> models = Lists.newArrayList();
+  private double logLikelihood;
+  private final List<OnlineLogisticRegression> models = Lists.newArrayList();
 
   // lambda, learningRate, perTermOffset, perTermExponent
   private double[] parameters = new double[4];
@@ -33,7 +32,6 @@ public class CrossFoldLearner extends AbstractVectorClassifier implements Online
   private PriorFunction prior;
 
   // pretty much just for GSON
-  @SuppressWarnings({"UnusedDeclaration"})
   public CrossFoldLearner() {
   }
 
