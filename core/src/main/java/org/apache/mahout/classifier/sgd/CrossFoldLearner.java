@@ -19,6 +19,9 @@ import java.util.List;
  * record should be passed with each training example.
  */
 public class CrossFoldLearner extends AbstractVectorClassifier implements OnlineLearner {
+  // minimum score to be used for computing log likelihood
+  private static final double MIN_SCORE = 1e-50;
+
   private int record = 0;
   private OnlineAuc auc = new OnlineAuc();
   private double logLikelihood = 0;
@@ -94,9 +97,11 @@ public class CrossFoldLearner extends AbstractVectorClassifier implements Online
     for (OnlineLogisticRegression model : models) {
       if (k == trackingKey % models.size()) {
         Vector v = model.classifyFull(instance);
-        double score = v.get(actual);
+        double score = Math.max(v.get(actual), MIN_SCORE);
         logLikelihood += (Math.log(score) - logLikelihood) / record;
-        auc.addSample(actual, v.get(1));
+        if (numCategories() == 2) {
+          auc.addSample(actual, v.get(1));
+        }
       } else {
         model.train(trackingKey, actual, instance);
       }
