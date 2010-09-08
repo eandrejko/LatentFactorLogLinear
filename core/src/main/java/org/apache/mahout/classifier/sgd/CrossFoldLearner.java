@@ -20,6 +20,8 @@ import java.util.List;
  */
 public class CrossFoldLearner extends AbstractVectorClassifier implements OnlineLearner {
   private int record;
+  // minimum score to be used for computing log likelihood
+  private static final double MIN_SCORE = 1e-50;
   private OnlineAuc auc = new OnlineAuc();
   private double logLikelihood;
   private final List<OnlineLogisticRegression> models = Lists.newArrayList();
@@ -93,9 +95,11 @@ public class CrossFoldLearner extends AbstractVectorClassifier implements Online
     for (OnlineLogisticRegression model : models) {
       if (k == trackingKey % models.size()) {
         Vector v = model.classifyFull(instance);
-        double score = v.get(actual);
+        double score = Math.max(v.get(actual), MIN_SCORE);
         logLikelihood += (Math.log(score) - logLikelihood) / record;
-        auc.addSample(actual, v.get(1));
+        if (numCategories() == 2) {
+          auc.addSample(actual, v.get(1));
+        }
       } else {
         model.train(trackingKey, actual, instance);
       }
