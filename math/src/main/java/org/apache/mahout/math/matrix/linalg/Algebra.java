@@ -8,9 +8,12 @@ It is provided "as is" without expressed or implied warranty.
 */
 package org.apache.mahout.math.matrix.linalg;
 
+import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.GenericPermuting;
+import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.PersistentObject;
 import org.apache.mahout.math.Swapper;
+import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.matrix.DoubleMatrix1D;
 import org.apache.mahout.math.matrix.DoubleMatrix2D;
 
@@ -152,34 +155,26 @@ public final class Algebra extends PersistentObject {
     }
     return A;
   }
+  public static Vector permute(Vector v, int[] indexes) {
+    // check validity
+    int size = v.size();
+    if (indexes.length != size) {
+      throw new IndexOutOfBoundsException("invalid permutation");
+    }
 
-  /**
-   * Constructs and returns a new row and column permuted <i>selection view</i> of matrix <tt>A</tt>; equivalent to
-   * {@link DoubleMatrix2D#viewSelection(int[],int[])}. The returned matrix is backed by this matrix, so changes in the
-   * returned matrix are reflected in this matrix, and vice-versa. Use idioms like <tt>result = permute(...).copy()</tt>
-   * to generate an independent sub matrix.
-   *
-   * @return the new permuted selection view.
-   */
-  public static DoubleMatrix2D permute(DoubleMatrix2D A, int[] rowIndexes, int[] columnIndexes) {
-    return A.viewSelection(rowIndexes, columnIndexes);
-  }
-
-  /**
-   * Modifies the given matrix <tt>A</tt> such that it's columns are permuted as specified; Useful for pivoting. Column
-   * <tt>A[i]</tt> will go into column <tt>A[indexes[i]]</tt>. Equivalent to <tt>permuteRows(transpose(A), indexes,
-   * work)</tt>.
-   *
-   * @param A       the matrix to permute.
-   * @param indexes the permutation indexes, must satisfy <tt>indexes.length==A.columns() && indexes[i] >= 0 &&
-   *                indexes[i] < A.columns()</tt>;
-   * @param work    the working storage, must satisfy <tt>work.length >= A.columns()</tt>; set <tt>work==null</tt> if
-   *                you don't care about performance.
-   * @return the modified <tt>A</tt> (for convenience only).
-   * @throws IndexOutOfBoundsException if <tt>indexes.length != A.columns()</tt>.
-   */
-  public static DoubleMatrix2D permuteColumns(DoubleMatrix2D A, int[] indexes, int[] work) {
-    return permuteRows(A.viewDice(), indexes, work);
+    /*
+    int i=size;
+    int a;
+    while (--i >= 0 && (a=indexes[i])==i) if (a < 0 || a >= size)
+    throw new IndexOutOfBoundsException("invalid permutation");
+    if (i<0) return; // nothing to permute
+    */
+    Vector work = new DenseVector(size);
+    work.assign(v);
+    for (int i = size; --i >= 0;) {
+      v.setQuick(i, work.getQuick(indexes[i]));
+    }
+    return v;
   }
 
   /**
@@ -240,6 +235,63 @@ public final class Algebra extends PersistentObject {
   }
 
   /**
+   * Modifies the given matrix <tt>A</tt> such that it's rows are permuted as specified; Useful for pivoting. Row
+   * <tt>A[i]</tt> will go into row <tt>A[indexes[i]]</tt>. <p> <b>Example:</b>
+   * <pre>
+   * Reordering
+   * [A,B,C,D,E] with indexes [0,4,2,3,1] yields
+   * [A,E,C,D,B]
+   * In other words A[0]<--A[0], A[1]<--A[4], A[2]<--A[2], A[3]<--A[3], A[4]<--A[1].
+   *
+   * Reordering
+   * [A,B,C,D,E] with indexes [0,4,1,2,3] yields
+   * [A,E,B,C,D]
+   * In other words A[0]<--A[0], A[1]<--A[4], A[2]<--A[1], A[3]<--A[2], A[4]<--A[3].
+   * </pre>
+   *
+   * @param A       the matrix to permute.
+   * @param indexes the permutation indexes, must satisfy <tt>indexes.length==A.rows() && indexes[i] >= 0 && indexes[i]
+   *                < A.rows()</tt>;
+   * @param work    the working storage, must satisfy <tt>work.length >= A.rows()</tt>; set <tt>work==null</tt> if you
+   *                don't care about performance.
+   * @return the modified <tt>A</tt> (for convenience only).
+   * @throws IndexOutOfBoundsException if <tt>indexes.length != A.rows()</tt>.
+   */
+  public static Matrix permuteRows(final Matrix A, int[] indexes, int[] work) {
+    // check validity
+    int size = A.rowSize();
+    if (indexes.length != size) {
+      throw new IndexOutOfBoundsException("invalid permutation");
+    }
+
+    /*
+    int i=size;
+    int a;
+    while (--i >= 0 && (a=indexes[i])==i) if (a < 0 || a >= size)
+      throw new IndexOutOfBoundsException("invalid permutation");
+    if (i<0) return; // nothing to permute
+    */
+
+    int columns = A.columnSize();
+    if (columns < size / 10) { // quicker to permute each column
+      for (int j = A.columnSize(); --j >= 0;) {
+        permute(A.viewColumn(j), indexes);
+      }
+      return A;
+    } else {
+
+    Swapper swapper = new Swapper() {
+      public void swap(int a, int b) {
+        A.viewRow(a).swap(A.viewRow(b));
+      }
+    };
+
+    GenericPermuting.permute(indexes, swapper, work, null);
+    return A;
+  }
+  }
+
+  /**
    * Returns the property object attached to this Algebra, defining tolerance.
    *
    * @return the Property object.
@@ -247,11 +299,6 @@ public final class Algebra extends PersistentObject {
    */
   public Property property() {
     return property;
-  }
-
-  /** Constructs and returns the QR-decomposition of the given matrix. */
-  private static QRDecomposition qr(DoubleMatrix2D matrix) {
-    return new QRDecomposition(matrix);
   }
 
   /**
@@ -274,31 +321,5 @@ public final class Algebra extends PersistentObject {
     this.property = property;
   }
 
-  /**
-   * Solves A*X = B.
-   *
-   * @return X; a new independent matrix; solution if A is square, least squares solution otherwise.
-   */
-  public static DoubleMatrix2D solve(DoubleMatrix2D A, DoubleMatrix2D B) {
-    return A.rows() == A.columns() ? (lu(A).solve(B)) : (qr(A).solve(B));
-  }
-
-  /**
-   * Modifies the matrix to be a lower trapezoidal matrix.
-   *
-   * @return <tt>A</tt> (for convenience only).
-   */
-  static DoubleMatrix2D trapezoidalLower(DoubleMatrix2D A) {
-    int rows = A.rows();
-    int columns = A.columns();
-    for (int r = rows; --r >= 0;) {
-      for (int c = columns; --c >= 0;) {
-        if (r < c) {
-          A.setQuick(r, c, 0);
-        }
-      }
-    }
-    return A;
-  }
 
 }
