@@ -1,8 +1,337 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.mahout.classifier.sgd;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import org.apache.mahout.math.AbstractMatrix;
+import org.apache.mahout.math.AbstractVector;
+import org.apache.mahout.math.DenseMatrix;
+import org.apache.mahout.math.DenseVector;
+import org.apache.mahout.math.Matrix;
+import org.apache.mahout.math.MatrixView;
+import org.apache.mahout.math.Vector;
+
+import java.util.Iterator;
+import java.util.List;
+
 /**
- * Created by IntelliJ IDEA. User: tdunning Date: Oct 4, 2010 Time: 2:54:26 PM To change this
- * template use File | Settings | File Templates.
+ * Represents a matrix of extensible number of rows and fixed number of columns. The goal here is to
+ * store data nearly as densely as a DenseMatrix, but with the ability to add new rows.  This is
+ * done by storing blocks indexed by row/blocksize.
  */
-public class BlockSparseMatrix {
+public class BlockSparseMatrix extends AbstractMatrix {
+  private int rows = 0;
+  private final int columns;
+  private final List<Matrix> data = Lists.newArrayList();
+  private final int blockSize = 200;
+
+  public BlockSparseMatrix(int columns) {
+    this.columns = columns;
+  }
+
+  /**
+   * Assign the other vector values to the column of the receiver
+   *
+   * @param column the int row to assign
+   * @param other  a Vector
+   * @return the modified receiver
+   * @throws org.apache.mahout.math.CardinalityException
+   *          if the cardinalities differ
+   */
+  @Override
+  public Matrix assignColumn(int column, Vector other) {
+    int i = 0;
+    for (Matrix block : data) {
+      block.assignColumn(column, other.viewPart(i * blockSize, blockSize));
+      i++;
+    }
+    return this;
+  }
+
+  /**
+   * Assign the other vector values to the row of the receiver
+   *
+   * @param row   the int row to assign
+   * @param other a Vector
+   * @return the modified receiver
+   * @throws org.apache.mahout.math.CardinalityException
+   *          if the cardinalities differ
+   */
+  @Override
+  public Matrix assignRow(int row, Vector other) {
+    Preconditions.checkArgument(row >= 0 && row < rows, "Bad row number %d not in [0,%d)", row, rows);
+    Preconditions.checkArgument(other.size() == columns, "Wrong size vector, wanted %d, got %d elements", columns, other.size());
+    data.get(row / blockSize).assignRow(row % blockSize, other);
+    return this;
+  }
+
+  /**
+   * Return the column at the given index
+   *
+   * @param column an int column index
+   * @return a Vector at the index
+   * @throws org.apache.mahout.math.IndexException
+   *          if the index is out of bounds
+   */
+  @Override
+  public Vector getColumn(int column) {
+    Preconditions.checkArgument(column >= 0 && column< columns, "Bad column, %d not in [0,%d)", column, columns);
+    return new BlockSparseColumn(this, column);
+  }
+
+  /**
+   * Return the row at the given index
+   *
+   * @param row an int row index
+   * @return a Vector at the index
+   * @throws org.apache.mahout.math.IndexException
+   *          if the index is out of bounds
+   */
+  @Override
+  public Vector getRow(int row) {
+    Preconditions.checkArgument(row >= 0 && row < rows, "Bad row number %d not in [0,%d)", row, rows);
+    return data.get(row / blockSize).getRow(row % blockSize);
+  }
+
+  /**
+   * Return the value at the given indexes, without checking bounds
+   *
+   * @param row    an int row index
+   * @param column an int column index
+   * @return the double at the index
+   */
+  @Override
+  public double getQuick(int row, int column) {
+    return data.get(row / blockSize).get(row % blockSize, column);
+  }
+
+  /**
+   * Return an empty matrix of the same underlying class as the receiver
+   *
+   * @return a Matrix
+   */
+  @Override
+  public Matrix like() {
+    return new BlockSparseMatrix(columns);
+  }
+
+  /**
+   * Returns an empty matrix of the same underlying class as the receiver and of the specified size.
+   *
+   * @param rows    the int number of rows
+   * @param columns the int number of columns
+   */
+  @Override
+  public Matrix like(int rows, int columns) {
+    return new BlockSparseMatrix(columns);
+  }
+
+  /**
+   * Set the value at the given index, without checking bounds
+   *
+   * @param row    an int row index into the receiver
+   * @param column an int column index into the receiver
+   * @param value  a double value to set
+   */
+  @Override
+  public void setQuick(int row, int column, double value) {
+    if (row < rows) {
+      data.get(rows / blockSize).setQuick(row % blockSize, column, value);
+    } else {
+      rows = row + 1;
+      while (rows / blockSize > data.size()) {
+        data.add(new DenseMatrix(blockSize, columns));
+      }
+      setQuick(row, column, value);
+    }
+  }
+
+  /**
+   * Return the number of values in the recipient
+   *
+   * @return an int[2] containing [row, column] count
+   */
+  @Override
+  public int[] getNumNondefaultElements() {
+    return new int[]{rows, columns};
+  }
+
+  /**
+   * Return a new matrix containing the subset of the recipient
+   *
+   * @param offset an int[2] offset into the receiver
+   * @param size   the int[2] size of the desired result
+   * @return a new Matrix that is a view of the original
+   * @throws org.apache.mahout.math.CardinalityException
+   *          if the length is greater than the cardinality of the receiver
+   * @throws org.apache.mahout.math.IndexException
+   *          if the offset is negative or the offset+length is outside of the receiver
+   */
+  @Override
+  public Matrix viewPart(int[] offset, int[] size) {
+    return new MatrixView(this, offset, size);
+  }
+
+  private static class BlockSparseColumn extends AbstractVector {
+    private final BlockSparseMatrix data;
+    private final int column;
+
+    private BlockSparseColumn(BlockSparseMatrix data, int column) {
+      super(data.rowSize());
+      this.data = data;
+      this.column = column;
+    }
+    /*
+     * @param rows    the row cardinality
+     * @param columns the column cardinality
+     * @return a Matrix
+     */
+    @Override
+    protected Matrix matrixLike(int rows, int columns) {
+      return new BlockSparseMatrix(columns);
+    }
+
+    /**
+     * @return true iff the {@link org.apache.mahout.math.Vector} implementation should be considered
+     *         dense -- that it explicitly represents every value
+     */
+    @Override
+    public boolean isDense() {
+      return true;
+    }
+
+    /**
+     * @return true iff {@link org.apache.mahout.math.Vector} should be considered to be iterable in
+     *         index order in an efficient way. In particular this implies that {@link #iterator()} and
+     *         {@link #iterateNonZero()} return elements in ascending order by index.
+     */
+    @Override
+    public boolean isSequentialAccess() {
+      return true;
+    }
+
+    /**
+     * Iterates over all elements <p/> * NOTE: Implementations may choose to reuse the Element returned
+     * for performance reasons, so if you need a copy of it, you should call {@link #getElement} for
+     * the given index
+     *
+     * @return An {@link java.util.Iterator} over all elements
+     */
+    @Override
+    public Iterator<Element> iterator() {
+      return new Iterator<Element>() {
+        int row = 0;
+
+        @Override
+        public boolean hasNext() {
+          return row < data.rows;
+        }
+
+        @Override
+        public Element next() {
+          return new Element() {
+
+            /**
+             * @return the value of this vector element.
+             */
+            @Override
+            public double get() {
+              return data.getQuick(row, column);
+            }
+
+            /**
+             * @return the index of this vector element.
+             */
+            @Override
+            public int index() {
+              return column;
+            }
+
+            /**
+             * @param value Set the current element to value.
+             */
+            @Override
+            public void set(double value) {
+              data.setQuick(row, column, value);
+            }
+          };
+        }
+
+        @Override
+        public void remove() {
+          throw new UnsupportedOperationException("Can't remove from matrix iterator");
+        }
+      };
+    }
+
+    /**
+     * Iterates over all non-zero elements. <p/> NOTE: Implementations may choose to reuse the Element
+     * returned for performance reasons, so if you need a copy of it, you should call {@link
+     * #getElement} for the given index
+     *
+     * @return An {@link java.util.Iterator} over all non-zero elements
+     */
+    @Override
+    public Iterator<Element> iterateNonZero() {
+      return iterator();
+    }
+
+    /**
+     * Return the value at the given index, without checking bounds
+     *
+     * @param index an int index
+     * @return the double at the index
+     */
+    @Override
+    public double getQuick(int index) {
+      return data.getQuick(index, column);
+    }
+
+    /**
+     * Return an empty vector of the same underlying class as the receiver
+     *
+     * @return a Vector
+     */
+    @Override
+    public Vector like() {
+      return new DenseVector(data.rowSize());
+    }
+
+    /**
+     * Set the value at the given index, without checking bounds
+     *
+     * @param index an int index into the receiver
+     * @param value a double value to set
+     */
+    @Override
+    public void setQuick(int index, double value) {
+      data.setQuick(index, column, value);
+    }
+
+    /**
+     * Return the number of values in the recipient
+     *
+     * @return an int
+     */
+    @Override
+    public int getNumNondefaultElements() {
+      return data.rowSize();
+    }
+  }
 }
