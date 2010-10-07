@@ -17,21 +17,42 @@
 
 package org.apache.mahout.classifier.sgd;
 
+import org.apache.mahout.math.CardinalityException;
 import org.apache.mahout.math.DenseMatrix;
+import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Matrix;
+import org.apache.mahout.math.MatrixSlice;
+import org.apache.mahout.math.MatrixTest;
+import org.junit.Test;
 
 /**
  * Created by IntelliJ IDEA. User: tdunning Date: Oct 6, 2010 Time: 4:46:38 PM To change this
  * template use File | Settings | File Templates.
  */
 public class BlockSparseMatrixTest extends MatrixTest {
-
   @Override
   public Matrix matrixFactory(double[][] values) {
     BlockSparseMatrix r = new BlockSparseMatrix(values[0].length);
-    r.assign(values);
+    int row = 0;
+    for (double[] rowValues : values) {
+      r.getRow(row).assign(rowValues);
+      row++;
+    }
     return r;
   }
 
+  @Test
+  public void testGetRowIndexOver() {
+    // this doesn't fail with BSM's because they extend automagically
+    assertEquals(0, test.getRow(5).zSum(), 0);
+  }
+
+
+  @Test
+  public void testAssignColumnCardinalityLong() {
+    double[] data = {2.1, 3.2, 1, 2, 3, 4, 5};
+    test.assignColumn(1, new DenseVector(data));
+    assertEquals(7, test.rowSize());
+  }
 
 }

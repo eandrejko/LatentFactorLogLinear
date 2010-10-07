@@ -21,8 +21,10 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.mahout.math.AbstractMatrix;
 import org.apache.mahout.math.AbstractVector;
+import org.apache.mahout.math.CardinalityException;
 import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.DenseVector;
+import org.apache.mahout.math.IndexException;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.MatrixView;
 import org.apache.mahout.math.Vector;
@@ -43,6 +45,7 @@ public class BlockSparseMatrix extends AbstractMatrix {
 
   public BlockSparseMatrix(int columns) {
     this.columns = columns;
+    cardinality[COL] = columns;
   }
 
   /**
@@ -56,9 +59,23 @@ public class BlockSparseMatrix extends AbstractMatrix {
    */
   @Override
   public Matrix assignColumn(int column, Vector other) {
+    if (other.size() < rows) {
+      throw new CardinalityException(rows, other.size());
+    }
+    if (other.size() > rows) {
+      // extend to correct size
+      getRow(other.size() - 1);
+    }
     int i = 0;
+    int remainder = rowSize();
     for (Matrix block : data) {
-      block.assignColumn(column, other.viewPart(i * blockSize, blockSize));
+      if (remainder < blockSize) {
+        int n = Math.min(remainder, blockSize);
+        block.viewColumn(column).viewPart(0, n).assign(other.viewPart(i * blockSize, n));
+      } else {
+        block.assignColumn(column, other.viewPart(i * blockSize, blockSize));
+      }
+      remainder -= blockSize;
       i++;
     }
     return this;
@@ -76,7 +93,9 @@ public class BlockSparseMatrix extends AbstractMatrix {
   @Override
   public Matrix assignRow(int row, Vector other) {
     Preconditions.checkArgument(row >= 0 && row < rows, "Bad row number %d not in [0,%d)", row, rows);
-    Preconditions.checkArgument(other.size() == columns, "Wrong size vector, wanted %d, got %d elements", columns, other.size());
+    if (other.size() != columns) {
+      throw new CardinalityException(columns, other.size());
+    }
     data.get(row / blockSize).assignRow(row % blockSize, other);
     return this;
   }
@@ -91,7 +110,9 @@ public class BlockSparseMatrix extends AbstractMatrix {
    */
   @Override
   public Vector getColumn(int column) {
-    Preconditions.checkArgument(column >= 0 && column< columns, "Bad column, %d not in [0,%d)", column, columns);
+    if(column < 0 || column >= columns) {
+      throw new IndexException(column, columns);
+    }
     return new BlockSparseColumn(this, column);
   }
 
@@ -105,8 +126,21 @@ public class BlockSparseMatrix extends AbstractMatrix {
    */
   @Override
   public Vector getRow(int row) {
-    Preconditions.checkArgument(row >= 0 && row < rows, "Bad row number %d not in [0,%d)", row, rows);
+    if(row < 0) {
+      throw new IndexException(row, rows);
+    }
+    extendToRowSize(row);
     return data.get(row / blockSize).getRow(row % blockSize);
+  }
+
+  private void extendToRowSize(int row) {
+    if (row >= rows) {
+      rows = row + 1;
+      cardinality[ROW] = rows;
+      while (rows / blockSize >= data.size()) {
+        data.add(new DenseMatrix(blockSize, columns));
+      }
+    }
   }
 
   /**
@@ -118,6 +152,7 @@ public class BlockSparseMatrix extends AbstractMatrix {
    */
   @Override
   public double getQuick(int row, int column) {
+    extendToRowSize(row);
     return data.get(row / blockSize).get(row % blockSize, column);
   }
 
@@ -128,11 +163,15 @@ public class BlockSparseMatrix extends AbstractMatrix {
    */
   @Override
   public Matrix like() {
-    return new BlockSparseMatrix(columns);
+    BlockSparseMatrix r = new BlockSparseMatrix(columns);
+    // ensure parts are allocated
+    r.getRow(this.numRows() - 1);
+    return r;
   }
 
   /**
-   * Returns an empty matrix of the same underlying class as the receiver and of the specified size.
+   * Returns an empty matrix of the same underlying class as the receiver and of the specified
+   * size.
    *
    * @param rows    the int number of rows
    * @param columns the int number of columns
@@ -151,15 +190,10 @@ public class BlockSparseMatrix extends AbstractMatrix {
    */
   @Override
   public void setQuick(int row, int column, double value) {
-    if (row < rows) {
-      data.get(rows / blockSize).setQuick(row % blockSize, column, value);
-    } else {
-      rows = row + 1;
-      while (rows / blockSize > data.size()) {
-        data.add(new DenseMatrix(blockSize, columns));
-      }
-      setQuick(row, column, value);
-    }
+    extendToRowSize(row);
+    rows = Math.max(rows, row + 1);
+    cardinality[ROW] = rows;
+    data.get(row / blockSize).setQuick(row % blockSize, column, value);
   }
 
   /**
@@ -185,6 +219,18 @@ public class BlockSparseMatrix extends AbstractMatrix {
    */
   @Override
   public Matrix viewPart(int[] offset, int[] size) {
+    if (offset[ROW] >= rows || offset[ROW] < 0) {
+      throw new IndexException(offset[ROW], rows);
+    }
+    if (offset[COL] >= columns || offset[COL] < 0) {
+      throw new IndexException(offset[COL], columns);
+    }
+    if (offset[ROW]+size[ROW] > rows || size[ROW] < 0) {
+      throw new IndexException(rows - offset[ROW], size[ROW]);
+    }
+    if (offset[COL]+size[COL] > columns || size[COL] < 0) {
+      throw new IndexException(columns - offset[COL], size[COL]);
+    }
     return new MatrixView(this, offset, size);
   }
 
@@ -202,14 +248,15 @@ public class BlockSparseMatrix extends AbstractMatrix {
      * @param columns the column cardinality
      * @return a Matrix
      */
+
     @Override
     protected Matrix matrixLike(int rows, int columns) {
       return new BlockSparseMatrix(columns);
     }
 
     /**
-     * @return true iff the {@link org.apache.mahout.math.Vector} implementation should be considered
-     *         dense -- that it explicitly represents every value
+     * @return true iff the {@link org.apache.mahout.math.Vector} implementation should be
+     *         considered dense -- that it explicitly represents every value
      */
     @Override
     public boolean isDense() {
@@ -218,8 +265,8 @@ public class BlockSparseMatrix extends AbstractMatrix {
 
     /**
      * @return true iff {@link org.apache.mahout.math.Vector} should be considered to be iterable in
-     *         index order in an efficient way. In particular this implies that {@link #iterator()} and
-     *         {@link #iterateNonZero()} return elements in ascending order by index.
+     *         index order in an efficient way. In particular this implies that {@link #iterator()}
+     *         and {@link #iterateNonZero()} return elements in ascending order by index.
      */
     @Override
     public boolean isSequentialAccess() {
@@ -227,9 +274,9 @@ public class BlockSparseMatrix extends AbstractMatrix {
     }
 
     /**
-     * Iterates over all elements <p/> * NOTE: Implementations may choose to reuse the Element returned
-     * for performance reasons, so if you need a copy of it, you should call {@link #getElement} for
-     * the given index
+     * Iterates over all elements <p/> * NOTE: Implementations may choose to reuse the Element
+     * returned for performance reasons, so if you need a copy of it, you should call {@link
+     * #getElement} for the given index
      *
      * @return An {@link java.util.Iterator} over all elements
      */
@@ -245,14 +292,16 @@ public class BlockSparseMatrix extends AbstractMatrix {
 
         @Override
         public Element next() {
-          return new Element() {
+          Element r = new Element() {
+            int r = row;
+            int c = column;
 
             /**
              * @return the value of this vector element.
              */
             @Override
             public double get() {
-              return data.getQuick(row, column);
+              return data.getQuick(r, c);
             }
 
             /**
@@ -260,7 +309,7 @@ public class BlockSparseMatrix extends AbstractMatrix {
              */
             @Override
             public int index() {
-              return column;
+              return c;
             }
 
             /**
@@ -268,21 +317,27 @@ public class BlockSparseMatrix extends AbstractMatrix {
              */
             @Override
             public void set(double value) {
-              data.setQuick(row, column, value);
+              data.setQuick(r, c, value);
             }
           };
+          row++;
+
+          return r;
         }
 
         @Override
-        public void remove() {
+        public void remove
+          () {
           throw new UnsupportedOperationException("Can't remove from matrix iterator");
         }
-      };
+      }
+
+        ;
     }
 
     /**
-     * Iterates over all non-zero elements. <p/> NOTE: Implementations may choose to reuse the Element
-     * returned for performance reasons, so if you need a copy of it, you should call {@link
+     * Iterates over all non-zero elements. <p/> NOTE: Implementations may choose to reuse the
+     * Element returned for performance reasons, so if you need a copy of it, you should call {@link
      * #getElement} for the given index
      *
      * @return An {@link java.util.Iterator} over all non-zero elements
