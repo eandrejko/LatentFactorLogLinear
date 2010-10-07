@@ -17,10 +17,15 @@
 
 package org.apache.mahout.classifier.sgd;
 
+import org.apache.mahout.common.RandomUtils;
+import org.apache.mahout.math.DenseMatrix;
+import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.function.UnaryFunction;
 import org.apache.mahout.math.list.IntArrayList;
+
+import java.util.Random;
 
 /**
  * Implements a Latent Factor Log-linear model as described in Dyadic Prediction Using a Latent
@@ -36,6 +41,7 @@ import org.apache.mahout.math.list.IntArrayList;
  * updates are dense.
  */
 public class LatentLogLinear {
+
   private final LogLinearModel left, right;
   private double mu0;
 
@@ -45,12 +51,12 @@ public class LatentLogLinear {
   }
 
   public void train(int leftId, int rightId, int actual) {
+    // chase intercept term to the left weights
+//    left.adjustBias(leftId, right.getBias(rightId));
+//    right.setBias(rightId, 1);
+
     left.train(leftId, actual, right.weights(rightId));
     right.train(rightId, actual, left.weights(leftId));
-
-    // chase intercept term to the left weights
-    left.adjustBias(leftId, right.getBias(rightId));
-    right.setBias(rightId, 0);
   }
 
   public LatentLogLinear learningRate(double mu0) {
@@ -69,14 +75,38 @@ public class LatentLogLinear {
     return left.getLambda();
   }
 
+  public double classifyScalar(int leftId, int rightId) {
+    left.extend(leftId);
+    right.extend(rightId);
+    if (leftId >= left.weights.rowSize() || rightId >= left.weights.rowSize()) {
+      return Double.NaN;
+    } else {
+      return logit(left.weights(leftId).dot(right.weights(rightId)));
+    }
+  }
+
+  private double logit(double v) {
+    return 1 / (1 + Math.exp(-v));
+  }
+
   private static class LogLinearModel extends AbstractOnlineLogisticRegression {
+    private final Random rand = RandomUtils.getRandom();
+
     private Matrix weights;
     private IntArrayList updates;
-    private double mu0;
+    private double mu0 = 1;
     private int updateCount;
 
     private LogLinearModel(int factors) {
-      weights = new BlockSparseMatrix(factors + 1);
+      this.numCategories = 2;
+      this.prior = new L1();
+
+      int numFeatures = factors;
+      updateSteps = new DenseVector(numFeatures);
+      updateCounts = new DenseVector(numFeatures);
+      beta = new DenseMatrix(numCategories - 1, numFeatures);
+
+      weights = new BlockSparseMatrix(numFeatures);
       updates = new IntArrayList();
     }
 
@@ -87,15 +117,18 @@ public class LatentLogLinear {
 
     @Override
     public double currentLearningRate() {
-      return mu0 / updateCount;
+      return mu0 / Math.sqrt(updateCount);
     }
 
     public void train(int id, int actual, Vector features) {
-      if (updates.size() < id) {
-        updates.fillFromToWith(updates.size(), id, 0);
+      extend(id);
+     
+      updateCount = updates.getQuick(id) + 1;
+      updates.setQuick(id, updateCount);
+
+      if (id >= weights.rowSize()) {
+        weights.setQuick(id, 0, 0);
       }
-      updates.setQuick(id, updates.getQuick(id) + 1);
-      updateCount = updates.getQuick(id);
 
       beta = weights.viewPart(id, 1, 0, weights.columnSize());
       train(actual, features);
@@ -117,14 +150,38 @@ public class LatentLogLinear {
     }
 
     public Vector weights(int id) {
+      extend(id);
       return weights.getRow(id);
     }
 
+    private void initializeWeights(int id) {
+      if (updates.get(id) < 0) {
+        weights.getRow(id).assign(new UnaryFunction() {
+          @Override
+          public double apply(double arg1) {
+            return rand.nextGaussian();
+          }
+        });
+        updates.set(id, 0);
+      }
+    }
+
+    private void extendUpdateCounts(int id) {
+      if (id >= updates.size()) {
+        while (id >= updates.size()) {
+          // this signals that the corresponding row hasn't been initialized
+          updates.add(-1);
+        }
+      }
+    }
+
     public void setBias(int id, double value) {
+      extend(id);
       weights.setQuick(id, 0, value);
     }
 
     public double getBias(int id) {
+      extend(id);
       return weights.getQuick(id, 0);
     }
 
@@ -138,6 +195,11 @@ public class LatentLogLinear {
 
     public void learningRate(double mu0) {
       this.mu0 = mu0;
+    }
+
+    public void extend(int id) {
+      extendUpdateCounts(id);
+      initializeWeights(id);
     }
   }
 }

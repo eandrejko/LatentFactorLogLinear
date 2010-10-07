@@ -17,11 +17,15 @@
 
 package org.apache.mahout.classifier.sgd;
 
+import com.google.common.base.Predicates;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.mahout.common.RandomUtils;
 import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.function.UnaryFunction;
+import org.apache.mahout.math.stats.OnlineSummarizer;
 import org.junit.Test;
 
 import java.util.Collections;
@@ -34,59 +38,81 @@ import java.util.Random;
  */
 public class LatentLogLinearTest {
   private static final double[] RETENTION = {0.8, 0.5, 0.25};
-  private static final int ITERATIONS = 1;
+  private static final int ITERATIONS = 50;
+  public static final int FACTORS = 2;
+
+  private final Random rand = RandomUtils.getRandom();
+
+  private UnaryFunction generator = new UnaryFunction() {
+    @Override
+    public double apply(double arg1) {
+      return rand.nextDouble() * 6 - 3;
+    }
+  };
 
   @Test
   public void testTrain() {
     int n = 1000;
-    Matrix alpha = new DenseMatrix(n, 5);
-    Matrix beta = new DenseMatrix(n, 5);
-
-    final Random rand = RandomUtils.getRandom();
-
-    UnaryFunction generator = new UnaryFunction() {
-      @Override
-      public double apply(double arg1) {
-        return rand.nextDouble() * 6 - 3;
-      }
-    };
+    Matrix alpha = new DenseMatrix(n, FACTORS);
+    Matrix beta = new DenseMatrix(n, FACTORS);
 
     alpha.assign(generator);
     beta.assign(generator);
-    beta.set(n - 1, 0, 1);
+    beta.getColumn(0).assign(1);
 
-    List<TestEvent> testData = Lists.newArrayList();
-    List<TestEvent> trainingData = Lists.newArrayList();
-    LatentLogLinear model = new LatentLogLinear(5);
-    for (double retention : RETENTION) {
-      for (int left = 0; left < n; left++) {
-        for (int right = 0; right < n; right++) {
-          double p = logit(alpha.getRow(left).dot(beta.getRow(right)));
-          int y = rand.nextDouble() < p ? 1 : 0;
-
-          if (rand.nextDouble() < retention) {
-            trainingData.add(new TestEvent(left, right, y));
-          } else {
-            testData.add(new TestEvent(left, right, y));
-          }
-        }
+    List<TestEvent> allData = Lists.newArrayList();
+    for (int left = 0; left < n; left++) {
+      for (int right = 0; right < n; right++) {
+        double p = logit(alpha.getRow(left).dot(beta.getRow(right)));
+        int y = rand.nextDouble() < p ? 1 : 0;
+        allData.add(new TestEvent(left, right, y, p));
       }
     }
-    Collections.shuffle(trainingData);
-    for (int i = 0; i < ITERATIONS; i++) {
-      for (TestEvent event : trainingData) {
-        model.train(event.left, event.right, event.y);
+    Collections.shuffle(allData);
+
+    for (double retention : RETENTION) {
+      LatentLogLinear model = new LatentLogLinear(FACTORS).learningRate(.1).lambda(1e-8);
+      int cut = (int) Math.floor(allData.size() * retention);
+      List<TestEvent> testData = allData.subList(cut, allData.size());
+      List<TestEvent> trainingData = allData.subList(0, cut);
+      for (int i = 0; i < ITERATIONS; i++) {
+        Collections.shuffle(trainingData);
+        for (TestEvent event : trainingData) {
+          model.train(event.left, event.right, event.y);
+        }
+        OnlineSummarizer ref = new OnlineSummarizer();
+        OnlineSummarizer refLL = new OnlineSummarizer();
+        OnlineSummarizer actual = new OnlineSummarizer();
+        OnlineSummarizer actualLL = new OnlineSummarizer();
+        for (TestEvent event : testData) {
+          double p = event.p;
+          ref.add(Math.min(p, 1 - p));
+
+          refLL.add(event.y * Math.log(p) + (1 - event.y) * Math.log(1 - p));
+
+          double phat = model.classifyScalar(event.left, event.right);
+          actual.add(Math.abs(event.y - phat));
+          actualLL.add(event.y * Math.log(phat) + (1 - event.y) * Math.log(1 - phat));
+
+        }
+        double meanBayesError = ref.getMean();
+        double meanBayesLL = refLL.getMean();
+        double meanError = actual.getMean();
+        double meanLL = actualLL.getMean();
+        System.out.printf("%d\t%.2f\t%.3f\t%.3f\t%.3f\t%.3f\n", i, retention, meanBayesError, meanError, meanBayesLL, meanLL);
       }
     }
   }
 
   private static class TestEvent {
     int left, right, y;
+    double p;
 
-    private TestEvent(int left, int right, int y) {
+    private TestEvent(int left, int right, int y, double p) {
       this.left = left;
       this.right = right;
       this.y = y;
+      this.p = p;
     }
   }
 
