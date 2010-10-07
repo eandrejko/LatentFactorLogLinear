@@ -129,7 +129,11 @@ public class LatentLogLinear {
     }
 
     public void adjustBias(int id, double adjustment) {
-      setBias(id, getBias(id) * adjustment);
+      double newValue = getBias(id) * adjustment;
+      if (Double.isNaN(newValue) || Double.isInfinite(newValue)) {
+        System.out.printf("bad bias\n");
+      }
+      setBias(id, newValue);
     }
 
     public void learningRate(double mu0) {

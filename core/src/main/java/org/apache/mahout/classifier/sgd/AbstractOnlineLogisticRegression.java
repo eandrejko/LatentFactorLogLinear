@@ -175,6 +175,9 @@ public abstract class AbstractOnlineLogisticRegression extends AbstractVectorCla
         int j = updateLocation.index();
 
         double newValue = beta.getQuick(i, j) + gradientBase * learningRate * perTermLearningRate(j) * instance.get(j);
+        if (Double.isNaN(newValue) || Double.isInfinite(newValue)) {
+          throw new ArithmeticException(String.format("Updating from %.3f to nastiness\n", beta.getQuick(i, j)));
+        }
         beta.setQuick(i, j, newValue);
       }
     }
