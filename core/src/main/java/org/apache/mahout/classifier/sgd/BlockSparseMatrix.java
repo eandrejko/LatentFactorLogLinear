@@ -18,7 +18,7 @@
 package org.apache.mahout.classifier.sgd;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.apache.mahout.math.AbstractMatrix;
 import org.apache.mahout.math.AbstractVector;
 import org.apache.mahout.math.CardinalityException;
@@ -30,7 +30,7 @@ import org.apache.mahout.math.MatrixView;
 import org.apache.mahout.math.Vector;
 
 import java.util.Iterator;
-import java.util.List;
+import java.util.Map;
 
 /**
  * Represents a matrix of extensible number of rows and fixed number of columns. The goal here is to
@@ -40,7 +40,7 @@ import java.util.List;
 public class BlockSparseMatrix extends AbstractMatrix {
   private int rows = 0;
   private final int columns;
-  private final List<Matrix> data = Lists.newArrayList();
+  private final Map<Integer, Matrix> data = Maps.newHashMap();
   private final int blockSize = 200;
 
   public BlockSparseMatrix(int columns) {
@@ -66,17 +66,15 @@ public class BlockSparseMatrix extends AbstractMatrix {
       // extend to correct size
       getRow(other.size() - 1);
     }
-    int i = 0;
-    int remainder = rowSize();
-    for (Matrix block : data) {
+    for (Integer blockNumber: data.keySet()) {
+      Matrix block = data.get(blockNumber);
+      int remainder = rowSize() - blockNumber * blockSize;
       if (remainder < blockSize) {
         int n = Math.min(remainder, blockSize);
-        block.viewColumn(column).viewPart(0, n).assign(other.viewPart(i * blockSize, n));
+        block.viewColumn(column).viewPart(0, n).assign(other.viewPart(blockNumber * blockSize, n));
       } else {
-        block.assignColumn(column, other.viewPart(i * blockSize, blockSize));
+        block.assignColumn(column, other.viewPart(blockNumber * blockSize, blockSize));
       }
-      remainder -= blockSize;
-      i++;
     }
     return this;
   }
@@ -134,12 +132,9 @@ public class BlockSparseMatrix extends AbstractMatrix {
   }
 
   private void extendToRowSize(int row) {
-    if (row >= rows) {
-      rows = row + 1;
-      cardinality[ROW] = rows;
-      while (rows / blockSize >= data.size()) {
-        data.add(new DenseMatrix(blockSize, columns));
-      }
+    Matrix block = data.get(row / blockSize);
+    if (block == null) {
+      data.put(rows / blockSize, new DenseMatrix(blockSize, columns));
     }
   }
 
@@ -336,9 +331,7 @@ public class BlockSparseMatrix extends AbstractMatrix {
     }
 
     /**
-     * Iterates over all non-zero elements. <p/> NOTE: Implementations may choose to reuse the
-     * Element returned for performance reasons, so if you need a copy of it, you should call {@link
-     * #getElement} for the given index
+     * Iterates over all non-zero elements.
      *
      * @return An {@link java.util.Iterator} over all non-zero elements
      */
