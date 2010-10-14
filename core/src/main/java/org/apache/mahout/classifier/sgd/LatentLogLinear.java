@@ -57,6 +57,7 @@ public class LatentLogLinear implements OnlineLearner {
 
     left.train(leftId, actual, right.weights(rightId));
     right.train(rightId, actual, left.weights(leftId));
+  }
   /**
    * Updates the model using a particular target variable value and a feature vector that
    * contains just a row and column id.
