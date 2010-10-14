@@ -39,14 +39,17 @@ import java.util.Map;
  */
 public class BlockSparseMatrix extends AbstractMatrix {
   private int rows = 0;
-  private final int columns;
+  private int columns;
   private final Map<Integer, Matrix> data = Maps.newHashMap();
-  private final int blockSize = 200;
+  private final int blockSize = 1;
 
   public BlockSparseMatrix(int columns) {
     this.columns = columns;
     cardinality[COL] = columns;
   }
+
+  // only for GSON use
+  private BlockSparseMatrix() {}
 
   /**
    * Assign the other vector values to the column of the receiver
@@ -127,15 +130,17 @@ public class BlockSparseMatrix extends AbstractMatrix {
     if(row < 0) {
       throw new IndexException(row, rows);
     }
-    extendToRowSize(row);
+    extendToThisRow(row);
     return data.get(row / blockSize).getRow(row % blockSize);
   }
 
-  private void extendToRowSize(int row) {
+  private void extendToThisRow(int row) {
     Matrix block = data.get(row / blockSize);
     if (block == null) {
-      data.put(rows / blockSize, new DenseMatrix(blockSize, columns));
+      data.put(row / blockSize, new DenseMatrix(blockSize, columns));
     }
+    rows = Math.max(row + 1, rows);
+    cardinality[ROW] = rows;
   }
 
   /**
@@ -147,7 +152,7 @@ public class BlockSparseMatrix extends AbstractMatrix {
    */
   @Override
   public double getQuick(int row, int column) {
-    extendToRowSize(row);
+    extendToThisRow(row);
     return data.get(row / blockSize).get(row % blockSize, column);
   }
 
@@ -173,7 +178,9 @@ public class BlockSparseMatrix extends AbstractMatrix {
    */
   @Override
   public Matrix like(int rows, int columns) {
-    return new BlockSparseMatrix(columns);
+    BlockSparseMatrix r = new BlockSparseMatrix(columns);
+    r.extendToThisRow(rows - 1);
+    return r;
   }
 
   /**
@@ -185,7 +192,7 @@ public class BlockSparseMatrix extends AbstractMatrix {
    */
   @Override
   public void setQuick(int row, int column, double value) {
-    extendToRowSize(row);
+    extendToThisRow(row);
     rows = Math.max(rows, row + 1);
     cardinality[ROW] = rows;
     data.get(row / blockSize).setQuick(row % blockSize, column, value);
