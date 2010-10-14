@@ -29,25 +29,8 @@ import com.google.common.base.Preconditions;
  * as an abstract class so that it can implement a number of handy convenience methods
  * related to classification of vectors.
  */
-public abstract class AbstractVectorClassifier {
+public abstract class AbstractVectorClassifier implements VectorClassifier {
   // ------ These are all that are necessary to define a vector classifier.
-
-  /**
-   * Returns the number of categories for the target variable.  A vector classifier
-   * will encode it's output using a zero-based 1 of numCategories encoding.
-   * @return The number of categories.
-   */
-  public abstract int numCategories();
-
-  /**
-   * Classify a vector returning a vector of numCategories-1 scores.  It is assumed that
-   * the score for the missing category is one minus the sum of the scores that are returned.
-   *
-   * Note that the missing score is the 0-th score.
-   * @param instance  A feature vector to be classified.
-   * @return  A vector of probabilities in 1 of n-1 encoding.
-   */
-  public abstract Vector classify(Vector instance);
 
   /**
    * Classify a vector, but don't apply the inverse link function.  For logistic regression
@@ -55,21 +38,11 @@ public abstract class AbstractVectorClassifier {
    * @param features  A feature vector to be classified.
    * @return  A vector of scores.  If transformed by the link function, these will become probabilities.
    */
+  @Override
   public Vector classifyNoLink(Vector features) {
     throw new UnsupportedOperationException("Classifier " + this.getClass().getName() +
       " doesn't support classification without a link");
   }
-
-  /**
-   * Classifies a vector in the special case of a binary classifier where
-   * <code>classify(Vector)</code> would return a vector with only one element.  As such,
-   * using this method can void the allocation of a vector.
-   * @param instance   The feature vector to be classified.
-   * @return The score for category 1.
-   *
-   * @see #classify(Vector)
-   */
-  public abstract double classifyScalar(Vector instance);
 
   // ------- From here on, we have convenience methods that provide an easier API to use.
 
@@ -85,6 +58,7 @@ public abstract class AbstractVectorClassifier {
    * @param instance A vector of features to be classified.
    * @return A vector of probabilities, one for each category.
    */
+  @Override
   public Vector classifyFull(Vector instance) {
     return classifyFull(new DenseVector(numCategories()), instance);
   }
@@ -99,6 +73,7 @@ public abstract class AbstractVectorClassifier {
    * @param instance A vector of features to be classified.
    * @return A vector of probabilities, one for each category.
    */
+  @Override
   public Vector classifyFull(Vector r, Vector instance) {
     r.viewPart(1, numCategories() - 1).assign(classify(instance));
     r.setQuick(0, 1 - r.zSum());
@@ -114,6 +89,7 @@ public abstract class AbstractVectorClassifier {
    * @return A matrix of scores, one row per row of the input matrix, one column for each but the
    *         last category.
    */
+  @Override
   public Matrix classify(Matrix data) {
     Matrix r = new DenseMatrix(data.numRows(), numCategories() - 1);
     for (int row = 0; row < data.numRows(); row++) {
@@ -129,6 +105,7 @@ public abstract class AbstractVectorClassifier {
    * @return A matrix of scores, one row per row of the input matrix, one column for each but the
    *         last category.
    */
+  @Override
   public Matrix classifyFull(Matrix data) {
     Matrix r = new DenseMatrix(data.numRows(), numCategories());
     for (int row = 0; row < data.numRows(); row++) {
@@ -145,6 +122,7 @@ public abstract class AbstractVectorClassifier {
    * @param data The matrix whose rows are vectors to classify
    * @return A vector of scores, with one value per row of the input matrix.
    */
+  @Override
   public Vector classifyScalar(Matrix data) {
     Preconditions.checkArgument(numCategories() == 2, "Can only call classifyScalar with two categories");
 

@@ -17,6 +17,8 @@
 
 package org.apache.mahout.classifier.sgd;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Predicates;
 import org.apache.mahout.classifier.AbstractVectorClassifier;
 import org.apache.mahout.classifier.OnlineLearner;
 import org.apache.mahout.math.DenseVector;
@@ -24,8 +26,6 @@ import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.function.Functions;
 import org.apache.mahout.math.function.UnaryFunction;
-
-import com.google.common.base.Preconditions;
 
 import java.util.Iterator;
 
@@ -300,7 +300,10 @@ public abstract class AbstractOnlineLogisticRegression extends AbstractVectorCla
     }
   }
 
-  public void copyFrom(AbstractOnlineLogisticRegression other) {
+  public void copyFrom(AdjustableOnlineLearner otherLearner) {
+    Preconditions.checkArgument(otherLearner instanceof OnlineLogisticRegression);
+    AbstractOnlineLogisticRegression other = (AbstractOnlineLogisticRegression) otherLearner;
+      
     // number of categories we are classifying.  This should the number of rows of beta plus one.
     Preconditions.checkArgument(numCategories == other.numCategories, "Can't copy unless number of target categories is the same");
 

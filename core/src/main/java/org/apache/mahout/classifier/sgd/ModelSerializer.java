@@ -57,6 +57,7 @@ public final class ModelSerializer {
   static {
     final GsonBuilder gb = new GsonBuilder();
     gb.registerTypeAdapter(AdaptiveLogisticRegression.class, new AdaptiveLogisticRegressionTypeAdapter());
+    gb.registerTypeAdapter(AdjustableOnlineLearner.class, new PolymorphicTypeAdapter<Mapping>());
     gb.registerTypeAdapter(Mapping.class, new PolymorphicTypeAdapter<Mapping>());
     gb.registerTypeAdapter(PriorFunction.class, new PolymorphicTypeAdapter<PriorFunction>());
     gb.registerTypeAdapter(OnlineAuc.class, new PolymorphicTypeAdapter<OnlineAuc>());
@@ -142,7 +143,7 @@ public final class ModelSerializer {
       JsonArray models = x.get("models").getAsJsonArray();
       for (JsonElement model : models) {
         r.addModel(
-            jsonDeserializationContext.<OnlineLogisticRegression>deserialize(model, OnlineLogisticRegression.class));
+            jsonDeserializationContext.<OnlineLogisticRegression>deserialize(model, AdjustableOnlineLearner.class));
       }
 
       r.setParameters(asArray(x, "parameters"));

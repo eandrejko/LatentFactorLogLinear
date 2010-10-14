@@ -42,8 +42,20 @@ import java.util.Random;
  * updates are dense.
  */
 public class LatentLogLinear implements OnlineLearner {
-  private final LogLinearModel left, right;
+  private final Random rand = RandomUtils.getRandom();
+  private LogLinearModel left, right;
+
   private double mu0;
+
+  // this contains [leftId, rightId] for actual = 0 and actual = 1 to allow
+  // for rank based learning.
+  int[] oldData = new int[6];
+
+  // how much of the training to use as rank data
+  double rankMixRate = 0.1;
+
+  // for GSON
+  private LatentLogLinear() {}
 
   public LatentLogLinear(int factors) {
     left = new LogLinearModel(factors);
@@ -55,9 +67,22 @@ public class LatentLogLinear implements OnlineLearner {
 //    left.adjustBias(leftId, right.getBias(rightId));
 //    right.setBias(rightId, 1);
 
-    left.train(leftId, actual, right.weights(rightId));
-    right.train(rightId, actual, left.weights(leftId));
+    if (rand.nextDouble() > rankMixRate) {
+      left.train(leftId, actual, right.weights(rightId));
+      right.train(rightId, actual, left.weights(leftId));
+    } else {
+      int oldLeft = oldData[(1 - actual) * 3];
+      int oldRight = oldData[(1 - actual) * 3 + 1];
+
+      // train on new - old latent factors
+      left.train(leftId, actual, right.weights(rightId).minus(right.weights(oldRight)));
+      right.train(rightId, actual, left.weights(leftId).minus(left.weights(oldLeft)));
+    }
+
+    oldData[actual * 3] = leftId;
+    oldData[actual * 3 + 1] = rightId;
   }
+
   /**
    * Updates the model using a particular target variable value and a feature vector that
    * contains just a row and column id.

@@ -17,6 +17,7 @@
 
 package org.apache.mahout.classifier.sgd;
 
+import com.google.common.base.Preconditions;
 import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.DenseVector;
 
@@ -24,7 +25,7 @@ import org.apache.mahout.math.DenseVector;
  * Extends the basic on-line logistic regression learner with a specific set of learning
  * rate annealing schedules.
  */
-public class OnlineLogisticRegression extends AbstractOnlineLogisticRegression {
+public class OnlineLogisticRegression extends AbstractOnlineLogisticRegression implements AdjustableOnlineLearner {
   // these next two control decayFactor^steps exponential type of annealing
   // learning rate and decay factor
   private double mu0 = 1;
@@ -75,6 +76,7 @@ public class OnlineLogisticRegression extends AbstractOnlineLogisticRegression {
    * @param learningRate New value of initial learning rate.
    * @return This, so other configurations can be chained.
    */
+  @Override
   public OnlineLogisticRegression learningRate(double learningRate) {
     this.mu0 = learningRate;
     return this;
@@ -104,7 +106,10 @@ public class OnlineLogisticRegression extends AbstractOnlineLogisticRegression {
     return mu0 * Math.pow(decayFactor, getStep()) * Math.pow(getStep() + stepOffset, forgettingExponent);
   }
 
-  public void copyFrom(OnlineLogisticRegression other) {
+  public void copyFrom(AdjustableOnlineLearner otherLearner) {
+    Preconditions.checkArgument(otherLearner instanceof OnlineLogisticRegression);
+    OnlineLogisticRegression other = (OnlineLogisticRegression) otherLearner;
+
     super.copyFrom(other);
     mu0 = other.mu0;
     decayFactor = other.decayFactor;
