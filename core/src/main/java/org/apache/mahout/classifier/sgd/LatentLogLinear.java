@@ -17,6 +17,7 @@
 
 package org.apache.mahout.classifier.sgd;
 
+import org.apache.mahout.classifier.OnlineLearner;
 import org.apache.mahout.common.RandomUtils;
 import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.DenseVector;
@@ -40,8 +41,7 @@ import java.util.Random;
  * Nothing fancy is done in terms of per term regularization or learning rate annealing because all
  * updates are dense.
  */
-public class LatentLogLinear {
-
+public class LatentLogLinear implements OnlineLearner {
   private final LogLinearModel left, right;
   private double mu0;
 
@@ -57,6 +57,67 @@ public class LatentLogLinear {
 
     left.train(leftId, actual, right.weights(rightId));
     right.train(rightId, actual, left.weights(leftId));
+  /**
+   * Updates the model using a particular target variable value and a feature vector that
+   * contains just a row and column id.
+   *
+   * @param actual   The value of the target variable.  This value should be in the half-open
+   *                 interval [0..n) where n is the number of target categories.
+   * @param instance The feature vector containing the row and column id's in elements 0 and 1.
+   */
+  @Override
+  public void train(int actual, Vector instance) {
+    double rowId = instance.get(0);
+    double columnId = instance.get(1);
+
+    if (Math.floor(rowId) != rowId) {
+      throw new IllegalArgumentException("Feature 0 must be row id.  Got a float with non-zero fractional part");
+    }
+    if (Math.floor(columnId) != columnId) {
+      throw new IllegalArgumentException("Feature 1 must be column id.  Got a float with non-zero fractional part");
+    }
+
+    train((int) rowId, (int) columnId, actual);
+  }
+
+  /**
+   * Convenience method, delegates to train(int, Vector).
+   *
+   * @param trackingKey The tracking key for this training example.
+   * @param groupKey    An optional value that allows examples to be grouped in the computation of
+   *                    the update to the model.
+   * @param actual      The value of the target variable.  This value should be in the half-open
+   *                    interval [0..n) where n is the number of target categories.
+   * @param instance    The feature vector for this example.
+   */
+  @Override
+  public void train(long trackingKey, String groupKey, int actual, Vector instance) {
+    train(actual, instance);
+  }
+
+  /**
+   * Convenience method, delegates to train(int, Vector).
+   *
+   * @param trackingKey The tracking key for this training example.
+   * @param actual      The value of the target variable.  This value should be in the half-open
+   *                    interval [0..n) where n is the number of target categories.
+   * @param instance    The feature vector for this example.
+   */
+  @Override
+  public void train(long trackingKey, int actual, Vector instance) {
+    train(actual, instance);
+  }
+
+  /**
+   * Prepares the classifier for classification and deallocates any temporary data structures.
+   * <p/>
+   * An online classifier should be able to accept more training after being closed, but closing the
+   * classifier may make classification more efficient.
+   */
+  @Override
+  public void close() {
+    left.close();
+    right.close();
   }
 
   public LatentLogLinear learningRate(double mu0) {
